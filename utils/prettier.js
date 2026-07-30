@@ -1,7 +1,16 @@
-const { resolveConfig: resolvePrettierConfig } = require('prettier')
+// Prettier 3 dropped its synchronous API. `@prettier/sync` is the official
+// synchronous wrapper, and we need synchronous resolution because a flat config
+// is a plain value, produced when this module is required.
+const { resolveConfig: resolvePrettierConfig } = require('@prettier/sync')
 const { resolve } = require('path')
 
 const DEFAULT_PATH = resolve(__dirname, '..', '.prettierrc')
+
+// Prettier searches upwards from the *directory containing* the path it is
+// given, so handing it a bare directory would skip that directory's own config.
+// This extension-less sentinel makes the search start inside the cwd, and
+// matches no `overrides` glob, so we get the project's base options.
+const PROBE = '__eslint-config-opengovsg__'
 
 /**
  * Resolve the relevant prettier config file for linting,
@@ -11,9 +20,11 @@ const DEFAULT_PATH = resolve(__dirname, '..', '.prettierrc')
  * @returns a Prettier configuration
  */
 function resolveConfig() {
-  const userProvidedConfig = resolvePrettierConfig.sync(process.cwd())
+  const userProvidedConfig = resolvePrettierConfig(
+    resolve(process.cwd(), PROBE),
+  )
   return userProvidedConfig === null
-    ? resolvePrettierConfig.sync(DEFAULT_PATH, { config: DEFAULT_PATH })
+    ? resolvePrettierConfig(DEFAULT_PATH, { config: DEFAULT_PATH })
     : userProvidedConfig
 }
 
