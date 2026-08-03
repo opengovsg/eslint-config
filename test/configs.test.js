@@ -1,7 +1,7 @@
 const { deepStrictEqual, ok, strictEqual } = require('assert')
 const { execFileSync } = require('child_process')
-const { mkdtempSync, readFileSync } = require('fs')
-const { tmpdir } = require('os')
+const { readFileSync } = require('fs')
+const { isBuiltin } = require('module')
 const { join, resolve } = require('path')
 const { describe, it } = require('node:test')
 
@@ -32,28 +32,10 @@ async function lint(presets, fixture) {
   return result.messages.map((message) => message.ruleId)
 }
 
-/** Run `resolveConfig()` from a given working directory. */
-function resolvePrettierConfigFrom(cwd) {
-  const script = `process.stdout.write(JSON.stringify(require(${JSON.stringify(
-    join(ROOT, 'utils', 'prettier'),
-  )}).resolveConfig()))`
-  return JSON.parse(execFileSync(process.execPath, ['-e', script], { cwd }))
-}
-
-/** The packaged default, which is not requireable (no `.json` extension). */
-function packagedPrettierrc() {
-  return JSON.parse(readFileSync(join(ROOT, '.prettierrc'), 'utf8'))
-}
-
 describe('javascript preset', () => {
   it('applies eslint:recommended', async () => {
     const rules = await lint([JAVASCRIPT], 'js/undef.js')
     ok(rules.includes('no-undef'), `got ${rules.join(', ')}`)
-  })
-
-  it('enforces the packaged prettier style', async () => {
-    const rules = await lint([JAVASCRIPT], 'js/unformatted.js')
-    ok(rules.includes('prettier/prettier'), `got ${rules.join(', ')}`)
   })
 
   it('enforces sorted imports', async () => {
@@ -101,6 +83,34 @@ describe('typescript preset', () => {
   it('leaves conforming typescript alone', async () => {
     deepStrictEqual(await lint([TYPESCRIPT], 'ts/clean.ts'), [])
   })
+
+  it('resolves imports through tsconfig path aliases', () => {
+    // The only thing `settings['import/resolver'].typescript` and the
+    // eslint-import-resolver-typescript dependency buy us: eslint-plugin-import
+    // ships only the node resolver, which cannot see `paths`.
+    //
+    // A child process because that resolver reads `process.cwd()` — not the
+    // linted file, and not ESLint's `cwd` option, which it ignores. In-process
+    // this would assert nothing. See the README on monorepos.
+    const script = `
+      const { ESLint } = require(${JSON.stringify(require.resolve('eslint'))})
+      new ESLint({
+        overrideConfigFile: true,
+        ignore: false,
+        overrideConfig: require(${JSON.stringify(join(ROOT, 'typescript'))}),
+      })
+        .lintFiles(['tsconfig-path-import.ts'])
+        .then(([result]) =>
+          process.stdout.write(
+            JSON.stringify(result.messages.map((m) => m.ruleId)),
+          ),
+        )`
+    const reported = execFileSync(process.execPath, ['-e', script], {
+      cwd: join(FIXTURES, 'ts'),
+      encoding: 'utf8',
+    })
+    deepStrictEqual(JSON.parse(reported), [])
+  })
 })
 
 describe('react preset', () => {
@@ -119,16 +129,10 @@ describe('react preset', () => {
     ok(rules.includes('react-hooks/rules-of-hooks'), `got ${rules.join(', ')}`)
   })
 
-  it('is additive, and pins a concrete React version', () => {
+  it('is additive', () => {
     // It has to compose on top of either base preset, so it must not fight
     // them over the parser.
     ok(REACT.every((block) => !block.languageOptions?.parser))
-    // `version: 'detect'` crashes every rule in the plugin on ESLint 10, so we
-    // resolve the version ourselves — see utils/react.js. Asserting against the
-    // React actually installed here covers the resolution path; a silent fall
-    // back to `999.999.999` would fail this.
-    const { version } = REACT.at(-1).settings.react
-    strictEqual(version, require('react/package.json').version)
   })
 })
 
@@ -139,6 +143,13 @@ describe('pulumi preset', () => {
       rules.includes('@pulumi/no-output-in-template-literal'),
       `got ${rules.join(', ')}`,
     )
+  })
+
+  it('leaves .tsx alone, so its carve-outs cannot reach React code', async () => {
+    // The preset switches two rules off, so scoping it to non-JSX TypeScript is
+    // what stops `no-unused-vars` going quiet across a repo's components.
+    const rules = await lint([TYPESCRIPT, PULUMI], 'ts/pulumi-scope.tsx')
+    ok(rules.includes('@typescript-eslint/no-unused-vars'), `got ${rules}`)
   })
 
   it('turns off the rules that clash with Pulumi idioms', async () => {
@@ -155,18 +166,34 @@ describe('pulumi preset', () => {
   })
 })
 
-describe('prettier config resolution', () => {
-  it("prefers the consumer's own prettier config", () => {
-    const config = resolvePrettierConfigFrom(join(FIXTURES, 'custom-prettier'))
-    strictEqual(config.printWidth, 40)
-    strictEqual(config.semi, true)
+describe('prettier interop', () => {
+  it('does not run prettier as a lint rule', async () => {
+    // Formatting is `prettier --check`'s job, so an unformatted file is not a
+    // lint failure.
+    deepStrictEqual(await lint([JAVASCRIPT], 'js/unformatted.js'), [])
   })
 
-  it('falls back to the packaged .prettierrc', () => {
-    const config = resolvePrettierConfigFrom(
-      mkdtempSync(join(tmpdir(), 'ogp-')),
-    )
-    deepStrictEqual(config, packagedPrettierrc())
+  it('turns off the core rules that conflict with a formatter', () => {
+    // What eslint-config-prettier buys us: without it, `--fix` fights
+    // `--write`.
+    const off = JAVASCRIPT.filter((block) => block.name === 'config-prettier')
+      .flatMap((block) => Object.entries(block.rules ?? {}))
+      .filter(([, level]) => level === 'off' || level === 0)
+    ok(off.length > 100, `only ${off.length} rules disabled`)
+    ok(off.some(([rule]) => rule === 'no-mixed-spaces-and-tabs'))
+  })
+
+  it('publishes the style it formats this repo with', () => {
+    // One file serves both roles, so they cannot drift. This asserts the
+    // subpath consumers require still resolves to it.
+    const { exports: map } = require('../package.json')
+    strictEqual(map['./prettier'], './prettier.config.js')
+    deepStrictEqual(require('../prettier.config.js'), {
+      printWidth: 80,
+      semi: false,
+      singleQuote: true,
+      trailingComma: 'all',
+    })
   })
 })
 
@@ -186,11 +213,9 @@ function ownRules(preset) {
 
 describe('package invariants', () => {
   it('declares no rules beyond the documented exceptions', () => {
-    // The README forbids self-defined opinions: every rule declared here must
-    // be either a plugin with no `recommended` preset, or a documented Pulumi
-    // carve-out.
+    // The README forbids self-defined opinions, so anything declared here must
+    // be a plugin with no preset of its own, or a documented Pulumi carve-out.
     deepStrictEqual(ownRules(JAVASCRIPT), [
-      'prettier/prettier',
       'simple-import-sort/exports',
       'simple-import-sort/imports',
     ])
@@ -205,22 +230,21 @@ describe('package invariants', () => {
   })
 
   it('declares every package the presets require', () => {
-    // Flat config means the presets `require()` their plugins directly, so
-    // anything they import has to be resolvable from a consumer's install.
+    // The presets `require()` their plugins directly, so anything they import
+    // has to resolve from a consumer's install.
     const { dependencies = {}, peerDependencies } = require('../package.json')
     const sources = [
       'javascript',
       'typescript',
       'react',
       'pulumi',
-      'utils/prettier',
-      'utils/react',
+      'prettier.config',
     ]
     for (const source of sources) {
       const code = readFileSync(join(ROOT, `${source}.js`), 'utf8')
       for (const [, specifier] of code.matchAll(/require\('([^']+)'\)/g)) {
-        if (specifier.startsWith('.') || specifier === 'path') continue
-        // Strip any subpath, e.g. eslint-plugin-prettier/recommended
+        if (specifier.startsWith('.') || isBuiltin(specifier)) continue
+        // Strip any subpath, e.g. eslint-config-prettier/flat
         const pkg = specifier.startsWith('@')
           ? specifier.split('/').slice(0, 2).join('/')
           : specifier.split('/')[0]

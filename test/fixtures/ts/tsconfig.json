@@ -5,7 +5,9 @@
     "moduleResolution": "node",
     "strict": true,
     "jsx": "react-jsx",
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": { "@fixture/*": ["./*"] }
   },
   "include": ["**/*.ts", "**/*.tsx"]
 }
