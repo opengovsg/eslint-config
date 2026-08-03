@@ -1,0 +1,3 @@
+# Deliberately non-conforming — they are the test inputs. Mirrors the
+# globalIgnores in eslint.config.js.
+test/fixtures/**

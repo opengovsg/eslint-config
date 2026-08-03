@@ -1,97 +1,129 @@
-# eslint-config-opengovsg
+# @opengovsg/eslint-config
 
-## Goal
+Shareable ESLint configs for Open Government Products, so you can start building without tuning linter settings.
 
-The goal of this package is to **provide reasonable defaults for most common scenarios, so that developers can start building** without worrying about linting configurations.
-
-## Explanation
-
-ESLint is a tool to "find and fix problems in your JavaScript code" (from [https://eslint.org/](https://eslint.org/)). We use ESLint to help us write better code. However, we do not want to invest efforts into the fine-tuning of detailed configurations, as those efforts can be better invested into building other things.
-
-As a result, we will NEVER have self-defined opinions in the library, which means `rules` section should not exist in the configs. Instead, only `recommended` rule sets from the biggest linting libraries (e.g. `eslint:recommended`) will be used. Essentially:
-
-1. We fully trust the community out there to maintain a reasonable set of recommended rules, so that most common error-prone patterns are covered
-1. When something really does not make sense in `recommended`, there are 2 options:
-   - influence and change the upstream `recommended` rule set
-   - or do overrides in `eslint.config.js` in our own repositories, NOT here. If a rule does not make sense to the broader community thus cannot enter the `recommended` rule set, it would not make sense to be here either.
+**This package will never hold its own opinions.** It only composes `recommended` rule sets from upstream plugins — we trust those communities to cover the error-prone patterns. If a rule does not fit, change it upstream or override it in your own `eslint.config.js`, not here. A rule that cannot earn its place in an upstream `recommended` set does not belong here either.
 
 ## Usage
 
-To install:
-
 ```sh
-npm install --save-dev eslint eslint-config-opengovsg
+npm install --save-dev eslint@^9 prettier@^3 @opengovsg/eslint-config
 ```
 
-Every plugin the presets use is a dependency of this package, so that is the whole install — ESLint itself is the only peer dependency. (`install-peerdeps` was needed in v3 and no longer is.)
+Every ESLint plugin the presets use is a dependency of this package, so you never install those yourself — ESLint is the only peer dependency. Prettier is separate, because ESLint does not run it: you invoke it directly, so you declare it. Skip it if you do not want formatting.
 
-Every preset is a [flat config](https://eslint.org/docs/latest/use/configure/configuration-files) array, so spread it into your `eslint.config.js`. Depending on the usage:
+Each preset is a [flat config](https://eslint.org/docs/latest/use/configure/configuration-files) array, so spread it into your `eslint.config.js`:
 
 ```js
-// TypeScript (yep we use TypeScript by default in OGP)
-module.exports = [...require('eslint-config-opengovsg')]
+// TypeScript (the OGP default)
+module.exports = [...require('@opengovsg/eslint-config')]
 
 // React
 module.exports = [
-  ...require('eslint-config-opengovsg'),
-  ...require('eslint-config-opengovsg/react'),
+  ...require('@opengovsg/eslint-config'),
+  ...require('@opengovsg/eslint-config/react'),
 ]
 
 // Pulumi
 module.exports = [
-  ...require('eslint-config-opengovsg'),
-  ...require('eslint-config-opengovsg/pulumi'),
+  ...require('@opengovsg/eslint-config'),
+  ...require('@opengovsg/eslint-config/pulumi'),
 ]
 
-// JavaScript, in case you really do not need TypeScript
-module.exports = [...require('eslint-config-opengovsg/javascript')]
+// JavaScript, if you really do not need TypeScript
+module.exports = [...require('@opengovsg/eslint-config/javascript')]
 ```
 
-The React preset is additive, so pair it with either base — `eslint-config-opengovsg` or `eslint-config-opengovsg/javascript`.
+`.`, `/javascript`, `/typescript`, `/react`, `/pulumi` and `/prettier` are the whole public surface; `.` is an alias for `/typescript`. Anything else will not resolve.
+
+**Pair React with the TypeScript base** unless your repo has no TypeScript at all. That preset enrols `.ts`/`.tsx` into linting — it must, or `react-hooks` misses custom hooks written in `.ts` — and the JavaScript base has no TypeScript parser. Combined with `/javascript`, a single `.d.ts` (the usual declaration for SVG or CSS-module imports) is enough to produce `Parsing error: Unexpected token`.
+
+## Formatting
+
+**ESLint does not format your code.** The presets include `eslint-config-prettier`, which switches off every rule that would fight a formatter, but Prettier runs as its own command — as both Prettier and `eslint-plugin-prettier` recommend. Add:
+
+```json
+{
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  }
+}
+```
+
+Then create a `prettier.config.js` re-exporting our style, optionally overriding it:
+
+```js
+module.exports = require('@opengovsg/eslint-config/prettier')
+
+// or
+module.exports = {
+  ...require('@opengovsg/eslint-config/prettier'),
+  printWidth: 100,
+}
+```
+
+Run `format:check` in CI, and `npx prettier --write .` once when adopting.
+
+> Prettier also accepts `"prettier": "@opengovsg/eslint-config/prettier"` in `package.json`, which works today. Prefer the config file: Prettier 4 [drops package-name resolution](https://github.com/prettier/prettier/issues/15741), while requiring the config is plain module resolution.
+
+### Monorepos and `tsconfig` path aliases
+
+`eslint-import-resolver-typescript` finds your `tsconfig.json` **relative to the directory ESLint runs in**, not relative to the file being linted. Run ESLint from the directory holding the `tsconfig.json` and aliases resolve with no configuration.
+
+Lint a monorepo from the root and nested aliases report `import/no-unresolved`. Point the resolver at them — we ship no default glob, as it would have to guess your layout:
+
+```js
+module.exports = [
+  ...require('@opengovsg/eslint-config'),
+  {
+    settings: {
+      'import/resolver': {
+        typescript: { project: ['tsconfig.json', 'packages/*/tsconfig.json'] },
+      },
+    },
+  },
+]
+```
+
+## Which ESLint version
+
+v4 requires **ESLint 9** (`^9.23.0`, where `defineConfig` landed).
+
+ESLint 10 is deliberately unsupported: `eslint-plugin-import` and `eslint-plugin-react` still cap their peer ranges at 9, so installing on 10 means a wall of `ERESOLVE` warnings and, without `--legacy-peer-deps`, a second nested copy of ESLint. We stay on 9 rather than push that onto every consumer. Tracked at [eslint-plugin-react#3979](https://github.com/jsx-eslint/eslint-plugin-react/pull/3979); ESLint 10 lands in v5.
 
 ## Upgrading from v3
 
-v4 requires ESLint 10 and drops `.eslintrc` support, because [ESLint 10 removed it](https://eslint.org/docs/latest/use/migrate-to-10.0.0). To migrate:
+The package is renamed from `eslint-config-opengovsg` to `@opengovsg/eslint-config`, and the presets are now flat configs.
 
-1. Replace `.eslintrc` with an `eslint.config.js` as above, moving any repository-specific overrides into a config object appended after the presets.
-2. Replace `.eslintignore` with `globalIgnores([...])` from `eslint/config`.
-3. The type-aware rules now only apply to `.ts`/`.tsx`/`.mts`/`.cts` files, so plain JavaScript in a TypeScript project no longer has to be listed in a `tsconfig.json`.
-4. Prettier 3 is now required, which changes some default formatting. Run `eslint --fix` over the repository once.
-5. Remove the plugins `install-peerdeps` added to your `devDependencies` — see below.
+1. Swap the package and drop the plugins with it. v3 made you install eleven peers yourself; v4 ships them as its own dependencies, so those entries are redundant and pin stale majors. Check [what not to uninstall](#what-not-to-uninstall) first.
 
-### Removing the v3 peer dependencies
+   ```sh
+   npm uninstall \
+     eslint-config-opengovsg \
+     @pulumi/eslint-plugin \
+     @typescript-eslint/eslint-plugin \
+     eslint-config-prettier \
+     eslint-import-resolver-typescript \
+     eslint-plugin-import \
+     eslint-plugin-prettier \
+     eslint-plugin-react \
+     eslint-plugin-react-hooks \
+     eslint-plugin-simple-import-sort
 
-v3 required you to install all eleven peers yourself, which is what `npx install-peerdeps --dev` did. v4 ships them as its own dependencies, so those entries in your `package.json` are now redundant — and stale, since they pin the v3 major of each plugin. Delete them:
+   npm install --save-dev eslint@^9 prettier@^3 @opengovsg/eslint-config
+   ```
 
-```sh
-npm uninstall \
-  @pulumi/eslint-plugin \
-  @typescript-eslint/eslint-plugin \
-  eslint-config-prettier \
-  eslint-import-resolver-typescript \
-  eslint-plugin-import \
-  eslint-plugin-prettier \
-  eslint-plugin-react \
-  eslint-plugin-react-hooks \
-  eslint-plugin-simple-import-sort
-```
+   **Run these as two commands, in this order.** Installing first fails outright: v3 declares `eslint: ^8.0.0` as a peer, which npm cannot reconcile with `^9.23.0`, so you get an `ERESOLVE` error rather than an upgrade. Drop `prettier@^3` only if you want no formatting.
 
-Then upgrade the one peer that remains:
+2. Replace `.eslintrc` with an `eslint.config.js` as above, moving repository-specific overrides into a config object appended after the presets.
+3. Replace `.eslintignore` with `globalIgnores([...])` from `eslint/config`.
+4. Type-aware rules now apply only to `.ts`/`.tsx`/`.mts`/`.cts`, so plain JavaScript no longer has to appear in a `tsconfig.json`.
+5. Set formatting up as its own step — see [Formatting](#formatting). Without it your code simply stops being formatted.
+6. Prettier 3 formats differently from the Prettier 2 v3 used. Run `npx prettier --write .` once, as its own commit.
 
-```sh
-npm install --save-dev eslint@^10 eslint-config-opengovsg@^4
-```
+### What not to uninstall
 
-Three things to keep rather than remove:
-
-- **`prettier`**, if you invoke it directly — a `format` script, `lint-staged`, a pre-commit hook, or an editor integration. It stays in `node_modules` as our dependency, but a package you call by name should be one you declare. Upgrade it to `^3` rather than dropping it. If ESLint is the only thing that ever runs Prettier in your repo, uninstall it.
-- **`eslint`** itself, which is still the peer dependency.
-- **Any plugin your own config references directly.** `@typescript-eslint/*` and `react/*` rule names in your overrides keep working, because the presets register those plugins for you — but if your `eslint.config.js` `require()`s a plugin itself, it has to be your own dependency. Do not rely on resolving one of ours transitively; that breaks the moment we change a preset.
-
-Removing `eslint-plugin-react` in particular also clears the `ERESOLVE` install error described below, since the conflict only errors when the plugin is a direct dependency of your repo.
-
-### Known issue: the React preset and ESLint 10
-
-[`eslint-plugin-react` does not support ESLint 10 yet](https://github.com/jsx-eslint/eslint-plugin-react/issues/3977) — a fix is [in progress upstream](https://github.com/jsx-eslint/eslint-plugin-react/pull/3979). Its recommended rules work fine; only its `version: 'detect'` handling is broken, so this package resolves your installed React version itself (see `utils/react.js`) and the preset works today.
-
-The plugin's declared peer range still stops at ESLint 9.7, so `npm install` prints `npm warn ERESOLVE overriding peer dependency` — a warning, not an error, since the plugin comes in as our dependency rather than yours. You only need `--legacy-peer-deps` if you also depend on `eslint-plugin-react` directly. Both workarounds go away once upstream publishes.
+- **`prettier`** — no longer shipped for you. Step 1 moves it to `^3`.
+- **`eslint`** — still the peer dependency. Step 1 moves it to `^9`.
+- **Any plugin your own config references directly.** `@typescript-eslint/*` and `react/*` rule names in your overrides keep working, since the presets register those plugins. But if your `eslint.config.js` `require()`s a plugin itself, declare it yourself — resolving one of ours transitively breaks the moment we change a preset.

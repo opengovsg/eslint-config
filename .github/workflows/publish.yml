@@ -13,7 +13,6 @@ jobs:
       id-token: write # Required for OIDC
     steps:
       - uses: actions/checkout@v4
-      # Setup .npmrc file to publish to NPM
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*

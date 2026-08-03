@@ -1,44 +1,49 @@
 {
-  "name": "eslint-config-opengovsg",
+  "name": "@opengovsg/eslint-config",
   "description": "ESLint configs for Open Government Products",
   "version": "4.0.0",
   "author": "Open Government Products, GovTech Singapore (https://open.gov.sg)",
   "bugs": {
-    "url": "https://github.com/opengovsg/eslint-config-opengovsg/issues"
+    "url": "https://github.com/opengovsg/eslint-config/issues"
   },
   "dependencies": {
-    "@eslint/js": "^10.0.1",
-    "@prettier/sync": "^0.6.1",
+    "@eslint/js": "^9.39.5",
     "@pulumi/eslint-plugin": "^0.3.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import": "^2.32.0",
-    "eslint-plugin-prettier": "^5.5.6",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "globals": "^17.7.0",
-    "prettier": "^3.9.6",
     "typescript-eslint": "^8.65.0"
   },
   "devDependencies": {
-    "eslint": "^10.8.0",
+    "eslint": "^9.39.5",
+    "prettier": "^3.9.6",
     "react": "^19",
     "typescript": "^6"
   },
   "engines": {
-    "node": "^20.19.0 || ^22.13.0 || >=24"
+    "node": "^18.18.0 || ^20.9.0 || >=21.1.0"
+  },
+  "exports": {
+    ".": "./typescript.js",
+    "./javascript": "./javascript.js",
+    "./typescript": "./typescript.js",
+    "./react": "./react.js",
+    "./pulumi": "./pulumi.js",
+    "./prettier": "./prettier.config.js",
+    "./package.json": "./package.json"
   },
   "files": [
     "javascript.js",
     "typescript.js",
     "react.js",
     "pulumi.js",
-    "utils/prettier.js",
-    "utils/react.js",
-    ".prettierrc"
+    "prettier.config.js"
   ],
-  "homepage": "https://github.com/opengovsg/eslint-config-opengovsg#readme",
+  "homepage": "https://github.com/opengovsg/eslint-config#readme",
   "keywords": [
     "eslint",
     "eslintconfig"
@@ -46,7 +51,7 @@
   "license": "MIT",
   "main": "typescript.js",
   "peerDependencies": {
-    "eslint": ">=10"
+    "eslint": "^9.23.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
@@ -54,9 +59,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/opengovsg/eslint-config-opengovsg.git"
+    "url": "git+https://github.com/opengovsg/eslint-config.git"
   },
   "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "lint": "eslint .",
     "test": "node --test \"test/*.test.js\""
   }

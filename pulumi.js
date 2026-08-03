@@ -1,33 +1,33 @@
 const { defineConfig } = require('eslint/config')
-const tseslint = require('typescript-eslint')
 
 const pulumi = require('@pulumi/eslint-plugin')
 
-// The Pulumi rules are type-aware, so they only apply where the TypeScript
-// preset has set the parser up. This preset is always combined with
-// `opengovsg` — see the README.
-const TYPESCRIPT_FILES = ['**/*.ts', '**/*.tsx', '**/*.mts', '**/*.cts']
+// These rules are type-aware, so spread `@opengovsg/eslint-config` first — this
+// preset relies on the parser and `projectService` that one sets up.
+//
+// No `.tsx`, unlike the TypeScript preset: Pulumi programs carry no JSX, and
+// the block below switches two rules off. Matching `.tsx` would disable
+// `no-unused-vars` across the React components of any repo holding an app and
+// its infrastructure together.
+const PULUMI_FILES = ['**/*.ts', '**/*.mts', '**/*.cts']
 
 module.exports = defineConfig([
   {
     name: 'opengovsg/pulumi',
-    files: TYPESCRIPT_FILES,
-    plugins: {
-      '@pulumi': pulumi,
-      // Re-registering the same plugin object under the same name is a no-op,
-      // and keeps the `@typescript-eslint/*` overrides below resolvable.
-      '@typescript-eslint': tseslint.plugin,
-    },
-    // Pulumi does not have a recommended rule set, otherwise this portion should never exist
+    files: PULUMI_FILES,
+    plugins: { '@pulumi': pulumi },
+    // The one place this package declares rules of its own — see the README —
+    // and only because `@pulumi/eslint-plugin` enables nothing by default. If
+    // it ever ships a recommended set, delete this and extend that instead.
     rules: {
-      // Apply Pulumi's ESLint rules since nothing is enabled by default
       '@pulumi/no-output-in-template-literal': 'error',
       '@pulumi/no-output-instance-in-template-literal': 'error',
-      // Some XxxArgs definitions are written as empty interfaces.
-      // typescript-eslint v8 folded `no-empty-interface` into
-      // `no-empty-object-type`.
+      // Generated `XxxArgs` types are idiomatically empty interfaces. The rule
+      // is `no-empty-object-type` because typescript-eslint v8 folded the older
+      // `no-empty-interface` into it.
       '@typescript-eslint/no-empty-object-type': 'off',
-      // Sometimes `const xxx = new Resource('xxx')` makes the code more readable, despite not using `xxx` afterwards
+      // `new Resource('xxx')` is written for its side effect, the binding kept
+      // only to name the resource.
       '@typescript-eslint/no-unused-vars': 'off',
     },
   },
