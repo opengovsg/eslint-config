@@ -103,4 +103,4 @@ On ESLint 10 every consumer install prints `npm warn ERESOLVE overriding peer de
 
 ## Release
 
-Merging to `main` publishes to npm automatically (`.github/workflows/publish.yml`, OIDC — no token), running `npm test` first, then pushing a `v<version>` tag. A PR check **fails unless `version` is bumped in both `package.json` and `package-lock.json`**, so every PR touching shipped files needs a version bump.
+Merging to `main` publishes automatically (`.github/workflows/publish.yml`), running `npm test` first, then pushing a `v<version>` tag. Two registries, in order: npm (OIDC — no token) and GitHub Packages (the workflow's `GITHUB_TOKEN`, which needs the `packages: write` permission). The second publish re-runs `actions/setup-node` purely to rewrite `.npmrc`; `publishConfig` therefore carries no `registry` key, since that would take precedence over `.npmrc` and send both publishes to npm. A PR check **fails unless `version` is bumped in both `package.json` and `package-lock.json`**, so every PR touching shipped files needs a version bump.

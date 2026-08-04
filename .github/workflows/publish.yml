@@ -1,4 +1,4 @@
-name: Publish to NPM
+name: Publish to npm and GitHub Packages
 
 on:
   push:
@@ -11,6 +11,7 @@ jobs:
     permissions:
       contents: write # for pushing tags
       id-token: write # Required for OIDC
+      packages: write # for publishing to GitHub Packages
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,4 +29,18 @@ jobs:
       - run: |
           git tag "v$(jq -r .version package.json)"
           git push origin "v$(jq -r .version package.json)"
-      - run: npm publish
+      - name: Publish to npm
+        run: npm publish
+      # Rewrites .npmrc to point the registry at GitHub Packages and to read the
+      # token from NODE_AUTH_TOKEN. `package.json` deliberately declares no
+      # `publishConfig.registry`, which would take precedence over this and send
+      # both publishes to the same place.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@opengovsg'
+      - name: Publish to GitHub Packages
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
