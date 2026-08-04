@@ -10,6 +10,12 @@ Shareable ESLint configs for Open Government Products, so you can start building
 npm install --save-dev eslint@^9 prettier@^3 @opengovsg/eslint-config
 ```
 
+The same version is published to GitHub Packages as well. To install from there instead, point the scope at that registry in your `.npmrc` and authenticate with a token that has `read:packages`:
+
+```ini
+@opengovsg:registry=https://npm.pkg.github.com
+```
+
 Every ESLint plugin the presets use is a dependency of this package, so you never install those yourself — ESLint is the only peer dependency. Prettier is separate, because ESLint does not run it: you invoke it directly, so you declare it. Skip it if you do not want formatting.
 
 Each preset is a [flat config](https://eslint.org/docs/latest/use/configure/configuration-files) array, so spread it into your `eslint.config.js`:

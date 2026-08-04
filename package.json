@@ -1,7 +1,7 @@
 {
   "name": "@opengovsg/eslint-config",
   "description": "ESLint configs for Open Government Products",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "author": "Open Government Products, GovTech Singapore (https://open.gov.sg)",
   "bugs": {
     "url": "https://github.com/opengovsg/eslint-config/issues"
@@ -54,7 +54,6 @@
     "eslint": "^9.23.0"
   },
   "publishConfig": {
-    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "repository": {
